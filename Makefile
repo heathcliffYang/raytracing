@@ -26,7 +26,7 @@ OBJS := \
 	main.o
 
 %.o: %.c
-	$(CC) $(CFLAGS) -c -o $@ $<
+	$(CC) $(CFLAGS) -c -DLOOPUNROLL -DSWP -o $@ $<
 
 
 $(EXEC): $(OBJS)
@@ -43,6 +43,12 @@ use-models.h: models.inc Makefile
 	        -e 's/^rectangular /append_rectangular/g' \
 	        -e 's/rectangular[0-9]/(\&&, \&rectangulars);/g' \
 	        -e 's/ = {//g' >> use-models.h
+
+cache-test: $(EXEC)
+	perf stat --repeat 100 \
+		-e cache-misses,cache-references,branch-misses,branch-load-misses \
+		./raytracing
+
 
 check: $(EXEC)
 	@./$(EXEC) && diff -u baseline.ppm out.ppm || (echo Fail; exit)

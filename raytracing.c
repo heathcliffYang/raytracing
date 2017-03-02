@@ -467,6 +467,7 @@ void raytracing(uint8_t *pixels, color background_color,
     idx_stack stk;
 
     int factor = sqrt(SAMPLES);
+#if defined(BASELINE)
     for (int j = 0; j < height; j++) {
         for (int i = 0; i < width; i++) {
             double r = 0, g = 0, b = 0;
@@ -495,4 +496,112 @@ void raytracing(uint8_t *pixels, color background_color,
             }
         }
     }
+#elif defined(SWP)
+    int token = 0;
+    double r = 0, g = 0, b = 0;
+
+    for (int j = 0; j < height; j++) {
+        for (int i = 0; i < width; i++) {
+            r = 0;
+            g = 0;
+            b = 0;
+            /* MSAA */
+            /* Loop unroll third for loop & swp */
+            /* I1-Stage1 */
+            idx_stack_init(&stk);
+            rayConstruction(d, u, v, w,
+                            i * factor + 0 / factor,
+                            j * factor + 0 % factor,
+                            view,
+                            width * factor, height * factor);
+            /* I1-Stage2 -> I2-Stage1 */
+            token = ray_color(view->vrp, 0.0, d, &stk, rectangulars, spheres,
+                              lights, object_color,
+                              MAX_REFLECTION_BOUNCES);
+            idx_stack_init(&stk);
+            rayConstruction(d, u, v, w,
+                            i * factor + 1 / factor,
+                            j * factor + 1 % factor,
+                            view,
+                            width * factor, height * factor);
+            /* I1-Stage3 -> I2-Stage2 -> I3-Stage1 */
+            if (token) {
+                r += object_color[0];
+                g += object_color[1];
+                b += object_color[2];
+            } else {
+                r += background_color[0];
+                g += background_color[1];
+                b += background_color[2];
+            }
+            token = ray_color(view->vrp, 0.0, d, &stk, rectangulars, spheres,
+                              lights, object_color,
+                              MAX_REFLECTION_BOUNCES);
+            idx_stack_init(&stk);
+            rayConstruction(d, u, v, w,
+                            i * factor + 2 / factor,
+                            j * factor + 2 % factor,
+                            view,
+                            width * factor, height * factor);
+            /* I1-Stage4 -> I2-Stage3 -> I3-Stage2 -> I4-Stage1 */
+            pixels[((i + (j * width)) * 3) + 0] = r * 255 / SAMPLES;
+            pixels[((i + (j * width)) * 3) + 1] = g * 255 / SAMPLES;
+            pixels[((i + (j * width)) * 3) + 2] = b * 255 / SAMPLES;
+            if (token) {
+                r += object_color[0];
+                g += object_color[1];
+                b += object_color[2];
+            } else {
+                r += background_color[0];
+                g += background_color[1];
+                b += background_color[2];
+            }
+            token = ray_color(view->vrp, 0.0, d, &stk, rectangulars, spheres,
+                              lights, object_color,
+                              MAX_REFLECTION_BOUNCES);
+            idx_stack_init(&stk);
+            rayConstruction(d, u, v, w,
+                            i * factor + 3 / factor,
+                            j * factor + 3 % factor,
+                            view,
+                            width * factor, height * factor);
+            /* I2-Stage4 -> I3-Stage3 -> I4-Stage2 */
+            pixels[((i + (j * width)) * 3) + 0] = r * 255 / SAMPLES;
+            pixels[((i + (j * width)) * 3) + 1] = g * 255 / SAMPLES;
+            pixels[((i + (j * width)) * 3) + 2] = b * 255 / SAMPLES;
+
+            if (token) {
+                r += object_color[0];
+                g += object_color[1];
+                b += object_color[2];
+            } else {
+                r += background_color[0];
+                g += background_color[1];
+                b += background_color[2];
+            }
+
+            token = ray_color(view->vrp, 0.0, d, &stk, rectangulars, spheres,
+                              lights, object_color,
+                              MAX_REFLECTION_BOUNCES);
+            /* I3-Stage4 -> I4-Stage3 */
+            pixels[((i + (j * width)) * 3) + 0] = r * 255 / SAMPLES;
+            pixels[((i + (j * width)) * 3) + 1] = g * 255 / SAMPLES;
+            pixels[((i + (j * width)) * 3) + 2] = b * 255 / SAMPLES;
+
+            if (token) {
+                r += object_color[0];
+                g += object_color[1];
+                b += object_color[2];
+            } else {
+                r += background_color[0];
+                g += background_color[1];
+                b += background_color[2];
+            }
+            /* I4-Stage4 */
+            pixels[((i + (j * width)) * 3) + 0] = r * 255 / SAMPLES;
+            pixels[((i + (j * width)) * 3) + 1] = g * 255 / SAMPLES;
+            pixels[((i + (j * width)) * 3) + 2] = b * 255 / SAMPLES;
+        }
+    }
+#endif
 }
